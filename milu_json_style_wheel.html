@@ -1,0 +1,154 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Milu Spin Wheel</title>
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            background: #fff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            color: #333;
+            font-family: sans-serif;
+        }
+        #wheelContainer {
+            position: relative;
+            width: 800px;
+            height: 800px;
+        }
+        #wheelCanvas {
+            width: 800px;
+            height: 800px;
+            border-radius: 50%;
+        }
+        #pointerImage {
+            position: absolute;
+            top: -30px;
+            left: 50%;
+            transform: translateX(-50%) rotate(90deg);
+            width: 60px;
+            height: 60px;
+            z-index: 10;
+        }
+        #spinButton {
+            margin-top: 20px;
+            padding: 12px 30px;
+            font-size: 22px;
+            font-weight: bold;
+            background-color: #3369E8;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(51, 105, 232, 0.4);
+        }
+    </style>
+</head>
+<body>
+    <h2>Milu</h2>
+    <div id="wheelContainer">
+        <img id="pointerImage" src="pointer_arrow.png" alt="pointer">
+        <canvas id="wheelCanvas" width="800" height="800"></canvas>
+    </div>
+    <button id="spinButton">Tap to spin</button>
+    <audio id="spinSound" src="https://actions.google.com/sounds/v1/foley/tick_clock.ogg" preload="auto"></audio>
+    <audio id="endSound" src="https://actions.google.com/sounds/v1/crowd/applause.ogg" preload="auto"></audio>
+
+    <script>
+        const canvas = document.getElementById("wheelCanvas");
+        const ctx = canvas.getContext("2d");
+        const spinSound = document.getElementById("spinSound");
+        const endSound = document.getElementById("endSound");
+
+        const segments = [
+            { label: "You Win!", color: "#3369E8" },
+            { label: "Maybe next time!", color: "#D50F25" },
+            { label: "Maybe next time!", color: "#EEB211" },
+            { label: "Maybe next time!", color: "#009925" },
+            { label: "Maybe next time!", color: "#3369E8" }
+        ];
+
+        const weights = [
+            { label: "You Win!", weight: 1 },
+            { label: "Maybe next time!", weight: 99 }
+        ];
+
+        const totalSegments = segments.length;
+        const anglePerSegment = 360 / totalSegments;
+        let currentAngle = 0;
+
+        function drawWheel() {
+            let angle = 0;
+            segments.forEach(segment => {
+                const arc = (anglePerSegment / 360) * 2 * Math.PI;
+                ctx.beginPath();
+                ctx.moveTo(canvas.width / 2, canvas.height / 2);
+                ctx.arc(canvas.width / 2, canvas.height / 2, 390, angle, angle + arc, false);
+                ctx.fillStyle = segment.color;
+                ctx.fill();
+                ctx.save();
+                ctx.translate(canvas.width / 2, canvas.height / 2);
+                ctx.rotate(angle + arc / 2);
+                ctx.textAlign = "right";
+                ctx.fillStyle = "#fff";
+                ctx.font = "bold 24px sans-serif";
+                ctx.fillText(segment.label, 360, 10);
+                ctx.restore();
+                angle += arc;
+            });
+        }
+
+        drawWheel();
+
+        function weightedRandom(weights) {
+            const total = weights.reduce((sum, item) => sum + item.weight, 0);
+            let rand = Math.random() * total;
+            for (let item of weights) {
+                if (rand < item.weight) return item.label;
+                rand -= item.weight;
+            }
+        }
+
+        function spinWheel() {
+            const result = weightedRandom(weights);
+            const targetIndex = result === "You Win!" ? 0 : Math.floor(Math.random() * 4) + 1;
+            const targetAngle = 360 - (targetIndex * anglePerSegment + anglePerSegment / 2);
+            const extraSpins = 6;
+            const finalAngle = (extraSpins * 360) + targetAngle;
+
+            let start = null;
+            let duration = 10000;
+            let initial = currentAngle;
+            spinSound.play();
+
+            function animate(timestamp) {
+                if (!start) start = timestamp;
+                const progress = Math.min((timestamp - start) / duration, 1);
+                currentAngle = initial + progress * (finalAngle - initial);
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.save();
+                ctx.translate(canvas.width / 2, canvas.height / 2);
+                ctx.rotate(currentAngle * Math.PI / 180);
+                ctx.translate(-canvas.width / 2, -canvas.height / 2);
+                drawWheel();
+                ctx.restore();
+                if (progress < 1) {
+                    requestAnimationFrame(animate);
+                } else {
+                    endSound.play();
+                }
+            }
+
+            requestAnimationFrame(animate);
+        }
+
+        document.getElementById("spinButton").addEventListener("click", spinWheel);
+    </script>
+</body>
+</html>
