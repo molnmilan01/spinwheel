@@ -1,0 +1,187 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Spin Wheel</title>
+  <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@600&display=swap" rel="stylesheet">
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: #ffffff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      font-family: 'Quicksand', sans-serif;
+    }
+    #wheelContainer {
+      position: relative;
+      width: 800px;
+      height: 800px;
+      cursor: pointer;
+    }
+    #wheelCanvas {
+      width: 800px;
+      height: 800px;
+    }
+    #pointerImage {
+      position: absolute;
+      top: -30px;
+      left: 50%;
+      transform: translateX(-50%) rotate(90deg);
+      width: 60px;
+      height: 60px;
+      z-index: 10;
+    }
+    #winnerPopup {
+      position: absolute;
+      top: 40%;
+      background: rgba(0,0,0,0.85);
+      color: white;
+      padding: 20px 40px;
+      border-radius: 10px;
+      font-size: 28px;
+      display: none;
+      z-index: 999;
+      font-family: 'Quicksand', sans-serif;
+    }  </style>
+</head>
+<body>
+  <div id="wheelContainer">
+    <img id="pointerImage" src="pointer_arrow.png" alt="pointer" />
+    <canvas id="wheelCanvas" width="800" height="800"></canvas>
+    
+  </div>
+  <audio id="spinSound" src="https://actions.google.com/sounds/v1/foley/tick_clock.ogg" preload="auto"></audio>
+  <audio id="endSound" src="https://actions.google.com/sounds/v1/crowd/applause.ogg" preload="auto"></audio>
+
+  <script>
+    const canvas = document.getElementById("wheelCanvas");
+    const ctx = canvas.getContext("2d");
+    const spinSound = document.getElementById("spinSound");
+    const endSound = document.getElementById("endSound");
+    const winnerPopup = document.getElementById("winnerPopup");
+    const wheelContainer = document.getElementById("wheelContainer");
+
+    const segments = [
+      { label: "YOU WIN", color: "#4CAF50", visibleAngle: 72 },
+      { label: "MAYBE NEXT TIME!", color: "#F44336", visibleAngle: 72 },
+      { label: "MAYBE NEXT TIME!", color: "#FF9800", visibleAngle: 72 },
+      { label: "MAYBE NEXT TIME!", color: "#2196F3", visibleAngle: 72 },
+      { label: "MAYBE NEXT TIME!", color: "#9C27B0", visibleAngle: 72 }
+    ];
+
+    const weights = [
+      { label: "YOU WIN", weight: 1 },
+      { label: "MAYBE NEXT TIME!", weight: 99 }
+    ];
+
+    function drawWheel() {
+      let angle = 0;
+      segments.forEach(segment => {
+        const arc = (segment.visibleAngle / 360) * 2 * Math.PI;
+        ctx.beginPath();
+        ctx.moveTo(canvas.width / 2, canvas.height / 2);
+        ctx.arc(canvas.width / 2, canvas.height / 2, 390, angle, angle + arc, false);
+        ctx.fillStyle = segment.color;
+        ctx.fill();
+        ctx.save();
+        ctx.translate(canvas.width / 2, canvas.height / 2);
+        ctx.rotate(angle + arc / 2);
+        ctx.textAlign = "right";
+        ctx.fillStyle = "#fff";
+        ctx.font = "bold 24px Quicksand, sans-serif";
+        ctx.fillText(segment.label, 360, 10);
+        ctx.restore();
+        angle += arc;
+      });
+    }
+
+    drawWheel();
+
+    function weightedRandom(weights) {
+      const total = weights.reduce((sum, item) => sum + item.weight, 0);
+      let rand = Math.random() * total;
+      for (let item of weights) {
+        if (rand < item.weight) return item.label;
+        rand -= item.weight;
+      }
+    }
+
+    function showWinner(label) {
+      winnerPopup.innerText = label;
+      winnerPopup.style.display = "block";
+      setTimeout(() => {
+        winnerPopup.style.display = "none";
+      }, 3000);
+    }
+
+    let isSpinning = false;
+
+    function spinWheel() {
+      if (isSpinning) return;
+      isSpinning = true;
+
+      let currentAngle = 0;
+      const result = weightedRandom(weights);
+      
+    let targetIndex;
+    if (result === "YOU WIN") {
+        // Force stop on a non-green visual segment (1–4)
+        targetIndex = Math.floor(Math.random() * 4) + 1;
+    } else {
+        // Also force result to avoid green segment
+        do {
+            targetIndex = Math.floor(Math.random() * 5);
+        } while (targetIndex === 0);
+    }
+    
+      
+    // Make sure we always avoid stopping visually in the green zone (288°–360°)
+    let rawAngle = 360 - (targetIndex * 72 + 36);
+    let baseAngle = rawAngle % 360;
+    if (baseAngle >= 288 || baseAngle < 0) {
+        // If angle falls in green segment, adjust slightly backwards
+        rawAngle -= 90; // push visually into a previous segment
+    }
+    const targetAngle = rawAngle;
+    
+      const extraSpins = 5;
+      const finalAngle = (extraSpins * 360) + targetAngle;
+
+      let start = null;
+      let duration = 5000;
+      const initial = currentAngle;
+      spinSound.play();
+
+      function animate(timestamp) {
+        if (!start) start = timestamp;
+        const progress = Math.min((timestamp - start) / duration, 1);
+        const angle = initial + progress * (finalAngle - initial);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.save();
+        ctx.translate(canvas.width / 2, canvas.height / 2);
+        ctx.rotate(angle * Math.PI / 180);
+        ctx.translate(-canvas.width / 2, -canvas.height / 2);
+        drawWheel();
+        ctx.restore();
+        if (progress < 1) {
+          requestAnimationFrame(animate);
+        } else {
+          endSound.play();
+          
+          
+          isSpinning = false;
+        }
+      }
+
+      requestAnimationFrame(animate);
+    }
+
+    wheelContainer.addEventListener("click", spinWheel);
+  </script>
+</body>
+</html>
